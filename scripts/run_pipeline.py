@@ -2,6 +2,7 @@ from pathlib import Path
 import argparse
 import yaml
 
+from match_events.detectors import build_detector
 from match_events.pipeline import MatchEventsPipeline
 
 
@@ -20,7 +21,8 @@ def main() -> None:
     video_path = config["input"]["video_path"]
     output_dir = config["output"]["output_dir"]
 
-    pipeline = MatchEventsPipeline()
+    detector = build_detector(config)
+    pipeline = MatchEventsPipeline(detector=detector)
     outputs = pipeline.run(video_path=video_path, output_dir=output_dir)
 
     print("[MatchEvents] Run completed")
