@@ -13,6 +13,17 @@ Create a modular system that:
 - derives match events and tactical/physical metrics
 - exports annotated video and structured data
 
+## Current capabilities
+
+The repository already supports:
+
+- reading a local video file
+- running a detector selected by config
+- exporting `detections.csv`
+- exporting `tracks.csv`
+- exporting `video_metadata.json`
+- rendering `annotated.mp4` with bounding boxes, labels, and track IDs
+
 ## Planned stack
 
 - **Backbone / inspiration:** Eagle
@@ -21,6 +32,79 @@ Create a modular system that:
 - **Tracker candidate:** ByteTrack
 - **Ball-focused detector candidate:** FootAndBall
 - **Core language:** Python
+
+## Quick start
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/MarcosMig/MatchEvents.git
+cd MatchEvents
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e .[dev]
+```
+
+On Windows, activate the environment with:
+
+```bash
+.venv\Scripts\activate
+```
+
+### 2. Place a video file
+
+Put a test video at:
+
+```text
+data/raw/sample.mp4
+```
+
+### 3. Run with stub detector
+
+```bash
+make run
+```
+
+### 4. Run with YOLO
+
+Edit `configs/base.yaml`:
+
+```yaml
+pipeline:
+  detector: yolo
+  tracker: baseline_stub
+  pitch_mapper: none
+
+models:
+  yolo:
+    model_path: data/external/yolo/best.pt
+    confidence: 0.25
+```
+
+Then place your YOLO weights at:
+
+```text
+data/external/yolo/best.pt
+```
+
+And run:
+
+```bash
+make run
+```
+
+## Outputs
+
+A successful run writes files into the configured output directory, by default:
+
+```text
+outputs/run_001/
+├── annotated.mp4
+├── detections.csv
+├── tracks.csv
+└── video_metadata.json
+```
 
 ## Proposed repository structure
 
@@ -69,14 +153,6 @@ MatchEvents/
 ### Milestone 4 — Event layer
 - infer simple match events
 - build event schema and export
-
-## Next implementation steps
-
-1. Add project packaging and dependencies
-2. Add config-driven pipeline entrypoint
-3. Implement video IO
-4. Add detector/tracker interfaces
-5. Plug first baseline model
 
 ## Notes
 
