@@ -10,7 +10,7 @@ output:
   save_tracks_csv: true
 
 pipeline:
-  detector: baseline_stub
+  detector: yolo
   tracker: baseline_stub
   pitch_mapper: none
 
