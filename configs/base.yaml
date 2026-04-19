@@ -1,0 +1,19 @@
+project:
+  name: match-events
+
+input:
+  video_path: data/raw/sample.mp4
+
+output:
+  output_dir: outputs/run_001
+  save_annotated_video: true
+  save_tracks_csv: true
+
+pipeline:
+  detector: baseline_stub
+  tracker: baseline_stub
+  pitch_mapper: none
+
+runtime:
+  device: cpu
+  batch_size: 1
