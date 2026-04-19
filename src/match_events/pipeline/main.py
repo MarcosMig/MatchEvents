@@ -8,6 +8,7 @@ import pandas as pd
 from match_events.detectors.base import BaseDetector, StubDetector
 from match_events.io.video import VideoReader
 from match_events.tracking.base import BaseTracker, StubTracker
+from match_events.visualization import VideoWriter, draw_tracks
 
 
 class MatchEventsPipeline:
@@ -29,19 +30,33 @@ class MatchEventsPipeline:
         detections_rows: list[dict] = []
         tracks_rows: list[dict] = []
 
-        for frame_idx, frame in video_reader.frames():
-            detections = self.detector.predict(frame, frame_idx)
-            tracks = self.tracker.update(detections, frame_idx)
+        annotated_video_path = output_path / "annotated.mp4"
+        writer = VideoWriter(
+            output_path=annotated_video_path,
+            fps=max(metadata.fps, 1.0),
+            width=metadata.width,
+            height=metadata.height,
+        )
 
-            for det in detections:
-                row = asdict(det)
-                row["center_xy"] = det.center_xy
-                detections_rows.append(row)
+        try:
+            for frame_idx, frame in video_reader.frames():
+                detections = self.detector.predict(frame, frame_idx)
+                tracks = self.tracker.update(detections, frame_idx)
 
-            for track in tracks:
-                row = asdict(track)
-                row["center_xy"] = track.center_xy
-                tracks_rows.append(row)
+                for det in detections:
+                    row = asdict(det)
+                    row["center_xy"] = det.center_xy
+                    detections_rows.append(row)
+
+                for track in tracks:
+                    row = asdict(track)
+                    row["center_xy"] = track.center_xy
+                    tracks_rows.append(row)
+
+                annotated_frame = draw_tracks(frame, tracks)
+                writer.write(annotated_frame)
+        finally:
+            writer.release()
 
         detections_csv = output_path / "detections.csv"
         tracks_csv = output_path / "tracks.csv"
@@ -55,4 +70,5 @@ class MatchEventsPipeline:
             "detections_csv": str(detections_csv),
             "tracks_csv": str(tracks_csv),
             "video_metadata_json": str(metadata_json),
+            "annotated_video": str(annotated_video_path),
         }
