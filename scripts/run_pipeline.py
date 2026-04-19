@@ -2,6 +2,8 @@ from pathlib import Path
 import argparse
 import yaml
 
+from match_events.pipeline import MatchEventsPipeline
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run MatchEvents pipeline")
@@ -15,11 +17,15 @@ def main() -> None:
     with config_path.open("r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
-    print("[MatchEvents] Pipeline bootstrap")
-    print(f"Config: {config_path}")
-    print(f"Input video: {config['input']['video_path']}")
-    print(f"Output dir: {config['output']['output_dir']}")
-    print("Next step: wire detector, tracker, and pitch mapper modules.")
+    video_path = config["input"]["video_path"]
+    output_dir = config["output"]["output_dir"]
+
+    pipeline = MatchEventsPipeline()
+    outputs = pipeline.run(video_path=video_path, output_dir=output_dir)
+
+    print("[MatchEvents] Run completed")
+    for key, value in outputs.items():
+        print(f"- {key}: {value}")
 
 
 if __name__ == "__main__":
