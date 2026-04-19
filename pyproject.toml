@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "match-events"
+version = "0.1.0"
+description = "Broadcast-video football tracking and match-events pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "MarcosMig" }
+]
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "opencv-python>=4.9",
+  "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "black>=24.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
