@@ -7,6 +7,7 @@ import pandas as pd
 
 from match_events.detectors.base import BaseDetector, StubDetector
 from match_events.io.video import VideoReader
+from match_events.postprocessing import BallClassCorrector, FrameRoleCorrector
 from match_events.tracking.base import BaseTracker, StubTracker
 from match_events.visualization import VideoWriter, draw_tracks
 
@@ -16,12 +17,26 @@ class MatchEventsPipeline:
         self,
         detector: BaseDetector | None = None,
         tracker: BaseTracker | None = None,
+        role_corrector: FrameRoleCorrector | None = None,
+        ball_corrector: BallClassCorrector | None = None,
+        interpolate_ball_tracks: bool = False,
+        ball_interpolation_max_gap: int = 12,
     ) -> None:
         self.detector = detector or StubDetector()
         self.tracker = tracker or StubTracker()
+        self.role_corrector = role_corrector or FrameRoleCorrector()
+        self.ball_corrector = ball_corrector or BallClassCorrector()
+        self.interpolate_ball_tracks = interpolate_ball_tracks
+        self.ball_interpolation_max_gap = ball_interpolation_max_gap
 
     def run(self, video_path: str | Path, output_dir: str | Path) -> dict[str, str]:
-        video_reader = VideoReader(video_path)
+        video_reader = VideoReader(
+            video_path,
+            start_frame=getattr(self, "start_frame", None),
+            end_frame=getattr(self, "end_frame", None),
+            start_time_seconds=getattr(self, "start_time_seconds", None),
+            end_time_seconds=getattr(self, "end_time_seconds", None),
+        )
         metadata = video_reader.get_metadata()
 
         output_path = Path(output_dir)
@@ -41,7 +56,11 @@ class MatchEventsPipeline:
         try:
             for frame_idx, frame in video_reader.frames():
                 detections = self.detector.predict(frame, frame_idx)
+                detections = self.ball_corrector.apply(detections)
+                detections = self.role_corrector.apply(frame, detections)
                 tracks = self.tracker.update(detections, frame_idx)
+                if self.interpolate_ball_tracks:
+                    tracks = self._with_interpolated_ball_tracks(tracks, frame_idx)
 
                 for det in detections:
                     row = asdict(det)
@@ -72,3 +91,30 @@ class MatchEventsPipeline:
             "video_metadata_json": str(metadata_json),
             "annotated_video": str(annotated_video_path),
         }
+
+    def _with_interpolated_ball_tracks(
+        self,
+        tracks: list,
+        frame_idx: int,
+    ) -> list:
+        ball_tracks = [track for track in tracks if track.class_name == "ball"]
+        if ball_tracks:
+            self._last_ball_track = ball_tracks[0]
+            return tracks
+
+        last_ball_track = getattr(self, "_last_ball_track", None)
+        if last_ball_track is None:
+            return tracks
+
+        gap = frame_idx - last_ball_track.frame_idx
+        if gap <= 0 or gap > self.ball_interpolation_max_gap:
+            return tracks
+
+        from dataclasses import replace
+
+        interpolated_ball = replace(
+            last_ball_track,
+            frame_idx=frame_idx,
+            confidence=min(last_ball_track.confidence, 0.10),
+        )
+        return [*tracks, interpolated_ball]
