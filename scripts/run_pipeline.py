@@ -2,9 +2,15 @@ from pathlib import Path
 import argparse
 import yaml
 
+from match_events.analytics import PossessionEstimator
 from match_events.detectors import build_detector
 from match_events.pipeline import MatchEventsPipeline
-from match_events.postprocessing import BallClassCorrector, FrameRoleCorrector
+from match_events.postprocessing import (
+    BallClassCorrector,
+    FieldRegionFilter,
+    FrameRoleCorrector,
+    TrackTeamAssigner,
+)
 from match_events.tracking import build_tracker
 
 
@@ -25,11 +31,17 @@ def main() -> None:
 
     detector = build_detector(config)
     tracker = build_tracker(config)
+    field_filter = FieldRegionFilter.from_config(config)
+    team_assigner = TrackTeamAssigner.from_config(config)
+    possession_estimator = PossessionEstimator.from_config(config)
     role_corrector = FrameRoleCorrector.from_config(config)
     ball_corrector = BallClassCorrector.from_config(config)
     pipeline = MatchEventsPipeline(
         detector=detector,
         tracker=tracker,
+        field_filter=field_filter,
+        team_assigner=team_assigner,
+        possession_estimator=possession_estimator,
         role_corrector=role_corrector,
         ball_corrector=ball_corrector,
         interpolate_ball_tracks=bool(

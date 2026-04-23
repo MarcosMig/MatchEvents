@@ -5,9 +5,15 @@ from pathlib import Path
 
 import pandas as pd
 
+from match_events.analytics import PossessionEstimator
 from match_events.detectors.base import BaseDetector, StubDetector
 from match_events.io.video import VideoReader
-from match_events.postprocessing import BallClassCorrector, FrameRoleCorrector
+from match_events.postprocessing import (
+    BallClassCorrector,
+    FieldRegionFilter,
+    FrameRoleCorrector,
+    TrackTeamAssigner,
+)
 from match_events.tracking.base import BaseTracker, StubTracker
 from match_events.visualization import VideoWriter, draw_tracks
 
@@ -17,6 +23,9 @@ class MatchEventsPipeline:
         self,
         detector: BaseDetector | None = None,
         tracker: BaseTracker | None = None,
+        field_filter: FieldRegionFilter | None = None,
+        team_assigner: TrackTeamAssigner | None = None,
+        possession_estimator: PossessionEstimator | None = None,
         role_corrector: FrameRoleCorrector | None = None,
         ball_corrector: BallClassCorrector | None = None,
         interpolate_ball_tracks: bool = False,
@@ -24,6 +33,9 @@ class MatchEventsPipeline:
     ) -> None:
         self.detector = detector or StubDetector()
         self.tracker = tracker or StubTracker()
+        self.field_filter = field_filter or FieldRegionFilter()
+        self.team_assigner = team_assigner or TrackTeamAssigner()
+        self.possession_estimator = possession_estimator or PossessionEstimator()
         self.role_corrector = role_corrector or FrameRoleCorrector()
         self.ball_corrector = ball_corrector or BallClassCorrector()
         self.interpolate_ball_tracks = interpolate_ball_tracks
@@ -44,6 +56,7 @@ class MatchEventsPipeline:
 
         detections_rows: list[dict] = []
         tracks_rows: list[dict] = []
+        tracks_by_frame: dict[int, list] = {}
 
         annotated_video_path = output_path / "annotated.mp4"
         writer = VideoWriter(
@@ -56,11 +69,14 @@ class MatchEventsPipeline:
         try:
             for frame_idx, frame in video_reader.frames():
                 detections = self.detector.predict(frame, frame_idx)
+                detections = self.field_filter.apply(frame, detections)
                 detections = self.ball_corrector.apply(detections)
                 detections = self.role_corrector.apply(frame, detections)
                 tracks = self.tracker.update(detections, frame_idx)
                 if self.interpolate_ball_tracks:
                     tracks = self._with_interpolated_ball_tracks(tracks, frame_idx)
+                tracks = self.team_assigner.apply(frame, tracks)
+                tracks_by_frame[frame_idx] = tracks
 
                 for det in detections:
                     row = asdict(det)
@@ -80,17 +96,24 @@ class MatchEventsPipeline:
         detections_csv = output_path / "detections.csv"
         tracks_csv = output_path / "tracks.csv"
         metadata_json = output_path / "video_metadata.json"
+        possession_csv = output_path / "possession.csv"
 
         pd.DataFrame(detections_rows).to_csv(detections_csv, index=False)
         pd.DataFrame(tracks_rows).to_csv(tracks_csv, index=False)
         pd.Series(asdict(metadata)).to_json(metadata_json, indent=2)
+        possession_rows = self.possession_estimator.estimate(tracks_by_frame)
+        if possession_rows:
+            pd.DataFrame(possession_rows).to_csv(possession_csv, index=False)
 
-        return {
+        outputs = {
             "detections_csv": str(detections_csv),
             "tracks_csv": str(tracks_csv),
             "video_metadata_json": str(metadata_json),
             "annotated_video": str(annotated_video_path),
         }
+        if possession_rows:
+            outputs["possession_csv"] = str(possession_csv)
+        return outputs
 
     def _with_interpolated_ball_tracks(
         self,
