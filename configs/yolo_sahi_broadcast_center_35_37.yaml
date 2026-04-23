@@ -1,0 +1,73 @@
+project:
+  name: match-events
+
+input:
+  video_path: data/raw/soccernet/england_epl/2014-2015/2015-04-11 - 19-30 Burnley 0 - 1 Arsenal/1_720p.mkv
+  start_time_seconds: 2100
+  end_time_seconds: 2220
+
+output:
+  output_dir: outputs/run_broadcast_center_35_37
+  save_annotated_video: true
+  save_tracks_csv: true
+
+pipeline:
+  detector: yolo
+  tracker: centroid
+  pitch_mapper: none
+
+models:
+  yolo:
+    model_path: runs/detect/runs/detect/train_remap_fix_v4/weights/best.pt
+    confidence: 0.20
+    class_confidence:
+      ball: 0.10
+      player: 0.20
+      referee: 0.20
+      goalkeeper: 0.20
+    sahi:
+      enabled: true
+      slice_height: 768
+      slice_width: 768
+      overlap_height_ratio: 0.20
+      overlap_width_ratio: 0.20
+
+runtime:
+  device: cpu
+  batch_size: 1
+
+tracking:
+  centroid:
+    max_missed_frames: 15
+    max_center_distance: 90
+    min_iou: 0.03
+    class_history: 15
+    ball_max_missed_frames: 25
+    ball_max_center_distance: 140
+    ball_min_confidence: 0.10
+    ball_min_size: 3
+    ball_max_size: 28
+    ball_max_aspect_ratio: 2.0
+  ball:
+    interpolate: true
+    max_gap_frames: 12
+
+postprocessing:
+  ball_correction:
+    enabled: true
+    min_size: 3
+    max_size: 24
+    max_aspect_ratio: 1.8
+    max_person_confidence: 0.25
+    corrected_confidence: 0.11
+  role_correction:
+    enabled: true
+    adaptive: true
+    min_people: 8
+    max_clusters: 4
+    player_clusters: 2
+    goal_side_ratio: 0.18
+    memory_clusters: 5
+    min_cluster_observations: 80
+    max_pattern_distance: 0.18
+    warmup_frames: 50
